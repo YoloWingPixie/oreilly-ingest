@@ -220,19 +220,32 @@ class DownloaderPlugin(Plugin):
                 assets_plugin.download_image(cover_url, images_dir / "cover.jpg")
 
         # Phase 4: Process chapters
+        # Group by filename so multiple leaves (pages) of the same logical chapter are merged
+        groups: dict[str, list] = {}
+        ordered_filenames: list[str] = []
+        for ch in chapters:
+            fn = ch["filename"]
+            if fn not in groups:
+                ordered_filenames.append(fn)
+            groups.setdefault(fn, []).append(ch)
+
         all_css_urls = set()
         all_image_urls = set()
         chapters_data = []
-        total_chapters = len(chapters)
+        merged_chapters: list[dict] = []
+        total_chapters = len(ordered_filenames)
 
         # ETA tracking
         chapter_times = []
         chapter_start_time = time.time()
 
-        for i, ch in enumerate(chapters):
+        for i, filename_key in enumerate(ordered_filenames):
             if check_cancel():
                 self._cleanup_on_cancel(book_dir)
                 raise Exception("Download cancelled by user")
+
+            group = groups[filename_key]
+            first = group[0]
 
             # Calculate percentage (chapters are 15%-80% of work)
             chapter_pct = 15 + int((i / total_chapters) * 65) if total_chapters > 0 else 15
@@ -242,34 +255,38 @@ class DownloaderPlugin(Plugin):
                 chapter_pct,
                 current_chapter=i + 1,
                 total_chapters=total_chapters,
-                chapter_title=ch.get("title", ""),
+                chapter_title=first.get("title", ""),
             )
 
-            # Fetch and process chapter content
-            raw_html = chapters_plugin.fetch_content(ch["content_url"])
-            processed, images = html_processor.process(
-                raw_html, book_id, skip_images=skip_images
-            )
-
-            # Collect CSS and image URLs
-            all_css_urls.update(ch["stylesheets"])
-            for img_url in ch["images"]:
-                all_image_urls.add(img_url)
-            for img_url in images:
-                if img_url.startswith("http") or img_url.startswith("/"):
+            # Fetch and merge all leaves for this logical chapter
+            processed_parts: list[str] = []
+            for ch in group:
+                raw_html = chapters_plugin.fetch_content(ch["content_url"])
+                processed, images = html_processor.process(
+                    raw_html, book_id, skip_images=skip_images
+                )
+                processed_parts.append(processed)
+                all_css_urls.update(ch["stylesheets"])
+                for img_url in ch["images"]:
                     all_image_urls.add(img_url)
+                for img_url in images:
+                    if img_url.startswith("http") or img_url.startswith("/"):
+                        all_image_urls.add(img_url)
+
+            combined = "".join(processed_parts)
 
             # Wrap in XHTML
             css_refs = [f"Styles/Style{j:02d}.css" for j in range(len(all_css_urls))]
-            xhtml = html_processor.wrap_xhtml(processed, css_refs, ch["title"])
+            xhtml = html_processor.wrap_xhtml(combined, css_refs, first["title"])
 
-            # Write chapter file
-            filename = ch["filename"].replace(".html", ".xhtml")
+            # Write chapter file (one per logical chapter)
+            filename = first["filename"].replace(".html", ".xhtml")
             file_path = oebps / filename
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(xhtml)
 
-            chapters_data.append((ch["filename"], ch["title"], processed))
+            chapters_data.append((first["filename"], first["title"], combined))
+            merged_chapters.append(dict(first))
 
             # Calculate ETA based on rolling average
             chapter_time = time.time() - chapter_start_time
@@ -286,7 +303,7 @@ class DownloaderPlugin(Plugin):
                     eta_seconds=eta_seconds,
                     current_chapter=i + 1,
                     total_chapters=total_chapters,
-                    chapter_title=ch.get("title", ""),
+                    chapter_title=first.get("title", ""),
                 )
 
         # Phase 5: Download assets
@@ -347,7 +364,7 @@ class DownloaderPlugin(Plugin):
             epub_plugin = self.kernel["epub"]
             epub_path = epub_plugin.generate(
                 book_info=book_info,
-                chapters=chapters,
+                chapters=merged_chapters,
                 toc=toc,
                 output_dir=book_dir,
                 css_files=css_list,
@@ -370,7 +387,7 @@ class DownloaderPlugin(Plugin):
                 report("generating_pdf_chapters", 95)
                 pdf_paths = pdf_plugin.generate_chapters(
                     book_info=book_info,
-                    chapters=chapters,
+                    chapters=merged_chapters,
                     output_dir=book_dir,
                     css_files=css_list,
                 )
@@ -379,7 +396,7 @@ class DownloaderPlugin(Plugin):
                 report("generating_pdf", 95)
                 pdf_path = pdf_plugin.generate(
                     book_info=book_info,
-                    chapters=chapters,
+                    chapters=merged_chapters,
                     toc=toc,
                     output_dir=book_dir,
                     css_files=css_list,
