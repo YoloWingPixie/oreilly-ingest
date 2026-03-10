@@ -77,12 +77,14 @@ class PlainTextPlugin(Plugin):
         lines = []
         if title := metadata.get("title"):
             lines.append(f"Title: {title}")
-        if authors := metadata.get("authors"):
-            lines.append(f"Authors: {', '.join(authors)}")
+        authors = metadata.get("authors") or []
+        if authors:
+            lines.append(f"Authors: {', '.join(str(a) for a in authors)}")
         if isbn := metadata.get("isbn"):
             lines.append(f"ISBN: {isbn}")
-        if publishers := metadata.get("publishers"):
-            lines.append(f"Publisher: {', '.join(publishers)}")
+        publishers = metadata.get("publishers") or []
+        if publishers:
+            lines.append(f"Publisher: {', '.join(str(p) for p in publishers)}")
 
         if lines:
             lines.append("\n---")

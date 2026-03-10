@@ -766,6 +766,8 @@ async function download(cardElement) {
     downloadBtn.classList.add('hidden');
     cancelBtn.classList.remove('hidden');
     progressFill.style.width = '0%';
+    const prevTraceback = progressSection.querySelector('.error-traceback');
+    if (prevTraceback) prevTraceback.classList.add('hidden');
 
     const outputDirInput = cardElement.querySelector('.output-dir-input');
     const outputDir = outputDirInput.value.trim();
@@ -903,7 +905,23 @@ async function pollProgress(cardElement) {
             cardElement.querySelector('.result-files').innerHTML = filesHTML;
         } else if (data.status === 'error') {
             restoreButtons();
-            progressStatus.textContent = `Error: ${data.error}`;
+            let errText = `Error: ${data.error}`;
+            if (data.error_log_path) errText += ` (log: ${data.error_log_path})`;
+            progressStatus.textContent = errText;
+            if (data.traceback) {
+                console.error('Download error traceback:\n', data.traceback);
+                const progressSection = cardElement.querySelector('.progress-section');
+                let detailsEl = progressSection.querySelector('.error-traceback');
+                if (!detailsEl) {
+                    detailsEl = document.createElement('pre');
+                    detailsEl.className = 'error-traceback mt-2 p-3 bg-red-50 border border-red-200 rounded text-xs overflow-auto max-h-48';
+                    detailsEl.style.whiteSpace = 'pre-wrap';
+                    detailsEl.style.wordBreak = 'break-all';
+                    progressSection.appendChild(detailsEl);
+                }
+                detailsEl.textContent = data.traceback;
+                detailsEl.classList.remove('hidden');
+            }
         } else {
             setTimeout(() => pollProgress(cardElement), 500);
         }

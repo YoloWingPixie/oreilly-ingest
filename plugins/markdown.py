@@ -36,8 +36,10 @@ class MarkdownPlugin(Plugin):
         md_dir.mkdir(parents=True, exist_ok=True)
 
         readme = f"# {book_info.get('title', 'Unknown')}\n\n"
-        readme += f"**Authors:** {', '.join(book_info.get('authors', []))}\n\n"
-        readme += f"**Publishers:** {', '.join(book_info.get('publishers', []))}\n\n"
+        authors = book_info.get("authors") or []
+        publishers = book_info.get("publishers") or []
+        readme += f"**Authors:** {', '.join(str(a) for a in authors)}\n\n"
+        readme += f"**Publishers:** {', '.join(str(p) for p in publishers)}\n\n"
         readme += "## Chapters\n\n"
 
         for filename, title, html in chapters:
@@ -48,6 +50,8 @@ class MarkdownPlugin(Plugin):
         (md_dir / "README.md").write_text(readme)
 
     def _detect_language(self, el):
+        if el is None:
+            return ""
         classes = el.get("class", [])
         if isinstance(classes, str):
             classes = classes.split()
@@ -58,7 +62,7 @@ class MarkdownPlugin(Plugin):
             if cls.startswith("lang-"):
                 return cls.replace("lang-", "")
 
-        return None
+        return ""
 
     def _fix_image_paths(self, markdown: str) -> str:
         return re.sub(r"\]\(Images/", "](./Images/", markdown)

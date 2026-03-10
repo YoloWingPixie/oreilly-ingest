@@ -73,10 +73,10 @@ class EpubPlugin(Plugin):
         cover_image: str | None,
     ):
         title = html.escape(book_info.get("title", "Unknown"))
-        authors = book_info.get("authors", [])
+        authors = book_info.get("authors") or []
         isbn = book_info.get("isbn", book_info.get("id", "unknown"))
-        description = html.escape(book_info.get("description", "")[:500])
-        publishers = book_info.get("publishers", [])
+        description = html.escape((book_info.get("description") or "")[:500])
+        publishers = book_info.get("publishers") or []
         language = book_info.get("language", "en")
         pub_date = book_info.get("publication_date", "")
 

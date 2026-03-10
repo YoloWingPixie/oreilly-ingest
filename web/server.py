@@ -2,7 +2,9 @@
 
 import json
 import re
+import sys
 import threading
+import traceback
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -309,10 +311,35 @@ class DownloaderHandler(SimpleHTTPRequestHandler):
             )
         except Exception as e:
             error_msg = str(e)
+            tb = traceback.format_exc()
+            # Write to the output directory (same volume as downloads - always writable)
+            log_line = f"\n{'='*60}\n[DOWNLOAD ERROR] {error_msg}\n{tb}\n"
+            written_log_path = None
+            for log_path in [
+                output_dir / "download_errors.log",
+                getattr(config, "ERROR_LOG_FILE", None),
+                config.BASE_DIR / "download_errors.log",
+            ]:
+                if log_path is None:
+                    continue
+                try:
+                    log_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(log_line)
+                    written_log_path = str(log_path)
+                    break
+                except Exception:
+                    continue
+            print("[DOWNLOAD ERROR]", error_msg, file=sys.stderr)
+            print(tb, file=sys.stderr)
+            sys.stderr.flush()
             if "cancelled" in error_msg.lower():
                 self._set_progress({"status": "cancelled", "error": error_msg})
             else:
-                self._set_progress({"status": "error", "error": error_msg})
+                payload = {"status": "error", "error": error_msg, "traceback": tb}
+                if written_log_path:
+                    payload["error_log_path"] = written_log_path
+                self._set_progress(payload)
 
     def _on_progress(self, progress: DownloadProgress):
         """Handle progress updates from the downloader plugin."""

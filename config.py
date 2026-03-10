@@ -7,8 +7,10 @@ OUTPUT_DIR = BASE_DIR / "output"
 DATA_DIR = BASE_DIR / "data"
 if DATA_DIR.exists():
     COOKIES_FILE = DATA_DIR / "cookies.json"
+    ERROR_LOG_FILE = DATA_DIR / "download_errors.log"
 else:
     COOKIES_FILE = BASE_DIR / "cookies.json"
+    ERROR_LOG_FILE = BASE_DIR / "download_errors.log"
 
 BASE_URL = "https://learning.oreilly.com"
 API_V1 = f"{BASE_URL}/api/v1"

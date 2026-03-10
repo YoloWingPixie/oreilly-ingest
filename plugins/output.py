@@ -51,7 +51,7 @@ class OutputPlugin(Plugin):
         """Create a book output directory with conflict resolution."""
         # Build folder name with fallback chain
         folder_title = (title or "").strip()
-        if not folder_title and authors:
+        if not folder_title and authors and len(authors) > 0:
             folder_title = f"Book by {authors[0]}"
         if not folder_title:
             folder_title = book_id
